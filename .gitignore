@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+# lib/ is tracked via git submodules / forge install — do not ignore
+frontend/.next/
+frontend/out/
+frontend/build/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.pem
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs & coverage
+*.log
+npm-debug.log*
+coverage/
+lcov.info
+contracts/coverage/
+
+# Foundry
+contracts/cache/
+contracts/out/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

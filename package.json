@@ -1,0 +1,36 @@
+{
+  "name": "verifiable-random-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Decentralized verifiable fair gaming platform with Chainlink VRF",
+  "license": "MIT",
+  "workspaces": [
+    "contracts",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "contracts:install": "npm run install:deps --workspace=@verifiable-random-game/contracts",
+    "contracts:build": "npm run build --workspace=@verifiable-random-game/contracts",
+    "contracts:test": "npm run test --workspace=@verifiable-random-game/contracts",
+    "contracts:coverage": "npm run test:coverage --workspace=@verifiable-random-game/contracts",
+    "contracts:fmt": "npm run fmt --workspace=@verifiable-random-game/contracts",
+    "frontend:dev": "npm run dev --workspace=@verifiable-random-game/frontend",
+    "frontend:build": "npm run build --workspace=@verifiable-random-game/frontend",
+    "frontend:lint": "npm run lint --workspace=@verifiable-random-game/frontend",
+    "dev": "npm run frontend:dev",
+    "build": "npm run contracts:build && npm run frontend:build",
+    "test": "npm run contracts:test"
+  },
+  "keywords": [
+    "blockchain",
+    "solidity",
+    "foundry",
+    "chainlink-vrf",
+    "web3",
+    "nextjs"
+  ]
+}
