@@ -59,6 +59,7 @@ contract LotteryRaffle is VRFGameBase {
     error InvalidPayment();
     error RoundNotDrawing();
     error NoActiveRound();
+    error AmountTooLarge();
 
     constructor(
         address vrfCoordinator,
@@ -112,7 +113,12 @@ contract LotteryRaffle is VRFGameBase {
     function closeRound(uint256 roundId) external {
         Round storage round = rounds[roundId];
         if (round.status != RoundStatus.Open) revert RoundNotOpen();
+
+        // NOTE: Using block.timestamp for coarse-grained round scheduling. Small timestamp manipulation
+        // by validators is bounded and does not affect correctness beyond minor timing edges.
+        // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp < round.endTime) revert RoundStillOpen();
+
         round.status = RoundStatus.Closed;
         emit RoundClosed(roundId);
     }
@@ -146,11 +152,19 @@ contract LotteryRaffle is VRFGameBase {
 
         Round storage round = rounds[roundId];
         if (round.status != RoundStatus.Open) revert RoundNotOpen();
+
+        // NOTE: Using block.timestamp for coarse-grained round window validation. Small timestamp manipulation
+        // by validators is bounded and does not affect correctness beyond minor timing edges.
+        // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp < round.startTime || block.timestamp >= round.endTime) revert InvalidRoundTiming();
+
         if (round.paymentToken != token || amount == 0) revert InvalidPayment();
+        if (amount > type(uint96).max) revert AmountTooLarge();
 
         round.totalWeight += amount;
         round.poolAmount += amount;
+
+        // Safe because of explicit bounds check above.
         _tickets[roundId].push(Ticket({player: msg.sender, weight: uint96(amount)}));
 
         emit TicketPurchased(roundId, msg.sender, amount, round.totalWeight);

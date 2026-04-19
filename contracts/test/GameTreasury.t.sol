@@ -33,7 +33,8 @@ contract GameTreasuryTest is GameTestBase {
     function test_depositERC20_success() public {
         uint256 poolBefore = treasury.getPoolBalance(address(token));
         vm.prank(alice);
-        token.transfer(address(lottery), 5e18);
+        bool ok = token.transfer(address(lottery), 5e18);
+        assertTrue(ok);
 
         vm.prank(address(lottery));
         token.approve(address(treasury), 5e18);

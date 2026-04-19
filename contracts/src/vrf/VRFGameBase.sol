@@ -95,7 +95,11 @@ abstract contract VRFGameBase is IVRFGameBase, VRFConsumerBaseV2, Ownable, Reent
         VRFProofRecord storage oldRecord = _recordsByRequestId[oldRequestId];
         if (oldRecord.status == VRFStatus.Fulfilled) revert VRFRequestNotRetryable(context);
 
+        // NOTE: block.timestamp is used only for a coarse-grained timeout gate. Small timestamp manipulation
+        // by validators is bounded and does not enable bypassing retry limits or breaking correctness.
+        // forge-lint: disable-next-line(block-timestamp)
         bool timedOut = block.timestamp > uint256(oldRecord.requestedAt) + vrfTimeoutSeconds;
+
         if (oldRecord.status == VRFStatus.Pending && !timedOut) {
             revert VRFRequestStillPending(context);
         }
@@ -147,7 +151,7 @@ abstract contract VRFGameBase is IVRFGameBase, VRFConsumerBaseV2, Ownable, Reent
         emit VRFFulfilled(record.context, requestId, randomWords);
 
         try this.__vrfCallbackTrampoline(record.context, requestId, randomWords) {
-        // Game logic executed via external trampoline for safe failure capture.
+            // Game logic executed via external trampoline for safe failure capture.
         } catch Error(string memory reason) {
             record.status = VRFStatus.Failed;
             emit VRFFailed(record.context, requestId, reason);
@@ -158,15 +162,11 @@ abstract contract VRFGameBase is IVRFGameBase, VRFConsumerBaseV2, Ownable, Reent
     }
 
     /// @dev External entry used only by `fulfillRandomWords` try/catch; not part of the public API.
-    function __vrfCallbackTrampoline(bytes32 context, uint256 requestId, uint256[] memory randomWords)
-        external
-    {
+    function __vrfCallbackTrampoline(bytes32 context, uint256 requestId, uint256[] memory randomWords) external {
         require(msg.sender == address(this), "VRFGameBase: only self");
         _onRandomWordsFulfilled(context, requestId, randomWords);
     }
 
     /// @dev Implemented by concrete games; must follow CEI inside implementations.
-    function _onRandomWordsFulfilled(bytes32 context, uint256 requestId, uint256[] memory randomWords)
-        internal
-        virtual;
+    function _onRandomWordsFulfilled(bytes32 context, uint256 requestId, uint256[] memory randomWords) internal virtual;
 }
