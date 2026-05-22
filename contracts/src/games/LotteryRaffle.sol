@@ -66,7 +66,7 @@ contract LotteryRaffle is VRFGameBase {
         address initialOwner,
         address treasury_,
         bytes32 keyHash,
-        uint64 subscriptionId,
+        uint256 subscriptionId, // <-- changed from uint64 to uint256 for v2.5
         uint16 requestConfirmations,
         uint32 callbackGasLimit
     )
@@ -114,8 +114,6 @@ contract LotteryRaffle is VRFGameBase {
         Round storage round = rounds[roundId];
         if (round.status != RoundStatus.Open) revert RoundNotOpen();
 
-        // NOTE: Using block.timestamp for coarse-grained round scheduling. Small timestamp manipulation
-        // by validators is bounded and does not affect correctness beyond minor timing edges.
         // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp < round.endTime) revert RoundStillOpen();
 
@@ -153,8 +151,6 @@ contract LotteryRaffle is VRFGameBase {
         Round storage round = rounds[roundId];
         if (round.status != RoundStatus.Open) revert RoundNotOpen();
 
-        // NOTE: Using block.timestamp for coarse-grained round window validation. Small timestamp manipulation
-        // by validators is bounded and does not affect correctness beyond minor timing edges.
         // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp < round.startTime || block.timestamp >= round.endTime) revert InvalidRoundTiming();
 
@@ -164,7 +160,6 @@ contract LotteryRaffle is VRFGameBase {
         round.totalWeight += amount;
         round.poolAmount += amount;
 
-        // Safe because of explicit bounds check above.
         _tickets[roundId].push(Ticket({player: msg.sender, weight: uint96(amount)}));
 
         emit TicketPurchased(roundId, msg.sender, amount, round.totalWeight);
@@ -185,7 +180,7 @@ contract LotteryRaffle is VRFGameBase {
 
         Ticket[] storage tickets = _tickets[roundId];
         if (tickets.length == 0 || round.totalWeight == 0) {
-            _rolloverNoWinner(roundId, round);
+            _rolloverNoWinner(round, roundId);
             return;
         }
 
@@ -202,7 +197,7 @@ contract LotteryRaffle is VRFGameBase {
         }
 
         if (winner == address(0)) {
-            _rolloverNoWinner(roundId, round);
+            _rolloverNoWinner(round, roundId);
             return;
         }
 
@@ -216,7 +211,7 @@ contract LotteryRaffle is VRFGameBase {
         emit RoundSettled(roundId, winner, payout, 0);
     }
 
-    function _rolloverNoWinner(uint256 roundId, Round storage round) internal {
+    function _rolloverNoWinner(Round storage round, uint256 roundId) internal {
         uint256 rolled = round.poolAmount;
         round.rolloverOut = rolled;
         round.status = RoundStatus.Settled;
