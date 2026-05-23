@@ -46,11 +46,35 @@ contract LotteryRaffle is VRFGameBase {
     mapping(uint256 roundId => Ticket[] tickets) private _tickets;
     mapping(bytes32 vrfContext => uint256 roundId) private _roundIdByContext;
 
-    event RoundOpened(uint256 indexed roundId, uint64 startTime, uint64 endTime, address indexed token, uint256 rolloverIn);
-    event TicketPurchased(uint256 indexed roundId, address indexed player, uint256 amount, uint256 totalWeight);
+    event RoundOpened(
+        uint256 indexed roundId,
+        uint64 startTime,
+        uint64 endTime,
+        address indexed token,
+        uint256 rolloverIn
+    );
+
+    event TicketPurchased(
+        uint256 indexed roundId,
+        address indexed player,
+        uint256 amount,
+        uint256 totalWeight
+    );
+
     event RoundClosed(uint256 indexed roundId);
-    event DrawRequested(uint256 indexed roundId, bytes32 indexed vrfContext, uint256 requestId);
-    event RoundSettled(uint256 indexed roundId, address winner, uint256 payout, uint256 rolloverOut);
+
+    event DrawRequested(
+        uint256 indexed roundId,
+        bytes32 indexed vrfContext,
+        uint256 requestId
+    );
+
+    event RoundSettled(
+        uint256 indexed roundId,
+        address winner,
+        uint256 payout,
+        uint256 rolloverOut
+    );
 
     error RoundNotOpen();
     error RoundStillOpen();
@@ -66,7 +90,7 @@ contract LotteryRaffle is VRFGameBase {
         address initialOwner,
         address treasury_,
         bytes32 keyHash,
-        uint256 subscriptionId, // <-- changed from uint64 to uint256 for v2.5
+        uint64 subscriptionId,
         uint16 requestConfirmations,
         uint32 callbackGasLimit
     )
@@ -84,10 +108,15 @@ contract LotteryRaffle is VRFGameBase {
         treasury = IGameTreasury(treasury_);
     }
 
-    function openRound(uint64 startTime, uint64 endTime, address paymentToken) external onlyOwner returns (uint256 roundId) {
+    function openRound(
+        uint64 startTime,
+        uint64 endTime,
+        address paymentToken
+    ) external onlyOwner returns (uint256 roundId) {
         if (endTime <= startTime) revert InvalidRoundTiming();
 
         roundId = ++currentRoundId;
+
         uint256 rolloverIn = pendingRollover;
         pendingRollover = 0;
 
@@ -112,21 +141,36 @@ contract LotteryRaffle is VRFGameBase {
 
     function closeRound(uint256 roundId) external {
         Round storage round = rounds[roundId];
-        if (round.status != RoundStatus.Open) revert RoundNotOpen();
 
+        if (round.status != RoundStatus.Open) {
+            revert RoundNotOpen();
+        }
+
+        // 普通用户只能在投注窗口结束后关闭期次；
+        // 管理员 owner 可以提前关闭，方便 Demo 演示和运维管理。
         // forge-lint: disable-next-line(block-timestamp)
-        if (block.timestamp < round.endTime) revert RoundStillOpen();
+        if (block.timestamp < round.endTime && msg.sender != owner()) {
+            revert RoundStillOpen();
+        }
 
         round.status = RoundStatus.Closed;
+
         emit RoundClosed(roundId);
     }
 
     function requestDraw(uint256 roundId) external {
         Round storage round = rounds[roundId];
-        if (round.status != RoundStatus.Closed) revert RoundNotClosed();
+
+        if (round.status != RoundStatus.Closed) {
+            revert RoundNotClosed();
+        }
 
         round.status = RoundStatus.Drawing;
-        bytes32 context = keccak256(abi.encode("LOTTERY_ROUND", address(this), roundId));
+
+        bytes32 context = keccak256(
+            abi.encode("LOTTERY_ROUND", address(this), roundId)
+        );
+
         _roundIdByContext[context] = roundId;
 
         uint256 requestId = _requestRandomness(context, 0);
@@ -139,28 +183,52 @@ contract LotteryRaffle is VRFGameBase {
         return _tickets[roundId].length;
     }
 
-    function getTicket(uint256 roundId, uint256 index) external view returns (address player, uint96 weight) {
+    function getTicket(
+        uint256 roundId,
+        uint256 index
+    ) external view returns (address player, uint96 weight) {
         Ticket memory t = _tickets[roundId][index];
         return (t.player, t.weight);
     }
 
     function _buyTickets(address token, uint256 amount) internal {
         uint256 roundId = currentRoundId;
-        if (roundId == 0) revert NoActiveRound();
+
+        if (roundId == 0) {
+            revert NoActiveRound();
+        }
 
         Round storage round = rounds[roundId];
-        if (round.status != RoundStatus.Open) revert RoundNotOpen();
+
+        if (round.status != RoundStatus.Open) {
+            revert RoundNotOpen();
+        }
 
         // forge-lint: disable-next-line(block-timestamp)
-        if (block.timestamp < round.startTime || block.timestamp >= round.endTime) revert InvalidRoundTiming();
+        if (
+            block.timestamp < round.startTime ||
+            block.timestamp >= round.endTime
+        ) {
+            revert InvalidRoundTiming();
+        }
 
-        if (round.paymentToken != token || amount == 0) revert InvalidPayment();
-        if (amount > type(uint96).max) revert AmountTooLarge();
+        if (round.paymentToken != token || amount == 0) {
+            revert InvalidPayment();
+        }
+
+        if (amount > type(uint96).max) {
+            revert AmountTooLarge();
+        }
 
         round.totalWeight += amount;
         round.poolAmount += amount;
 
-        _tickets[roundId].push(Ticket({player: msg.sender, weight: uint96(amount)}));
+        _tickets[roundId].push(
+            Ticket({
+                player: msg.sender,
+                weight: uint96(amount)
+            })
+        );
 
         emit TicketPurchased(roundId, msg.sender, amount, round.totalWeight);
 
@@ -173,12 +241,21 @@ contract LotteryRaffle is VRFGameBase {
         }
     }
 
-    function _onRandomWordsFulfilled(bytes32 context, uint256, uint256[] memory randomWords) internal override {
+    function _onRandomWordsFulfilled(
+        bytes32 context,
+        uint256,
+        uint256[] memory randomWords
+    ) internal override {
         uint256 roundId = _roundIdByContext[context];
+
         Round storage round = rounds[roundId];
-        if (round.status != RoundStatus.Drawing) revert RoundNotDrawing();
+
+        if (round.status != RoundStatus.Drawing) {
+            revert RoundNotDrawing();
+        }
 
         Ticket[] storage tickets = _tickets[roundId];
+
         if (tickets.length == 0 || round.totalWeight == 0) {
             _rolloverNoWinner(round, roundId);
             return;
@@ -190,6 +267,7 @@ contract LotteryRaffle is VRFGameBase {
 
         for (uint256 i = 0; i < tickets.length; i++) {
             accumulated += tickets[i].weight;
+
             if (winningPoint < accumulated) {
                 winner = tickets[i].player;
                 break;
@@ -202,6 +280,7 @@ contract LotteryRaffle is VRFGameBase {
         }
 
         uint256 payout = round.poolAmount;
+
         round.winner = winner;
         round.winnerPayout = payout;
         round.status = RoundStatus.Settled;
@@ -213,8 +292,10 @@ contract LotteryRaffle is VRFGameBase {
 
     function _rolloverNoWinner(Round storage round, uint256 roundId) internal {
         uint256 rolled = round.poolAmount;
+
         round.rolloverOut = rolled;
         round.status = RoundStatus.Settled;
+
         pendingRollover += rolled;
 
         emit RoundSettled(roundId, address(0), 0, rolled);
